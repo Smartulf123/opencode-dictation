@@ -1,5 +1,7 @@
 # OpenCode Dictation
 
+[![npm](https://img.shields.io/npm/v/opencode-dictation)](https://www.npmjs.com/package/opencode-dictation)
+
 Talk to [OpenCode](https://opencode.ai) instead of typing. A microphone sits in the prompt bar of the OpenCode CLI: click it and speak. Your words show up in the prompt as you talk, in grey, and become real text each time you pause. Click it again to stop, or press Enter to stop and send.
 
 Speech is turned into text on your own computer with [Whisper](https://github.com/openai/whisper), through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It runs on the CPU, works offline, and no audio leaves your machine. There's nothing to compile and no Python: the audio and speech packages ship prebuilt for Windows, macOS and Linux. So far it has been tested on Windows 11; reports from macOS and Linux are welcome.
@@ -18,8 +20,10 @@ Speech is turned into text on your own computer with [Whisper](https://github.co
 Needs OpenCode 2.
 
 ```bash
-opencode plugin add github:Smartulf123/opencode-dictation
+opencode plugin add opencode-dictation
 ```
+
+That installs it [from npm](https://www.npmjs.com/package/opencode-dictation). To get the latest code from GitHub instead: `opencode plugin add github:Smartulf123/opencode-dictation`.
 
 Restart OpenCode. The first time you dictate, the speech model (about 155 MB) is downloaded once into `~/.cache/opencode-dictation`.
 
@@ -54,7 +58,7 @@ Give options by writing the plugin's entry in `~/.config/opencode/opencode.json`
 {
   "plugins": [
     {
-      "package": "github:Smartulf123/opencode-dictation",
+      "package": "opencode-dictation",
       "options": { "key": "ctrl+r", "language": "en", "model": "small", "sendOnEnter": false }
     }
   ]
