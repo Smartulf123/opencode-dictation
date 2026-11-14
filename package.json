@@ -1,6 +1,6 @@
 {
   "name": "opencode-dictation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Voice dictation for the OpenCode CLI: click the mic in the prompt bar, speak, and your words are typed into the prompt. Runs Whisper locally on your CPU, offline.",
   "keywords": [
     "opencode",

@@ -1,6 +1,6 @@
 # OpenCode Dictation
 
-Talk to [OpenCode](https://opencode.ai) instead of typing. A microphone sits in the prompt bar of the OpenCode CLI: click it, speak, and your words are typed into the prompt each time you pause. Click it again to stop, or press Enter to stop and send.
+Talk to [OpenCode](https://opencode.ai) instead of typing. A microphone sits in the prompt bar of the OpenCode CLI: click it and speak. Your words show up in the prompt as you talk, in grey, and become real text each time you pause. Click it again to stop, or press Enter to stop and send.
 
 Speech is turned into text on your own computer with [Whisper](https://github.com/openai/whisper), through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). It runs on the CPU, works offline, and no audio leaves your machine. There's nothing to compile and no Python: the audio and speech packages ship prebuilt for Windows, macOS and Linux. So far it has been tested on Windows 11; reports from macOS and Linux are welcome.
 
@@ -10,7 +10,7 @@ Speech is turned into text on your own computer with [Whisper](https://github.co
 ┃
 ┃  Build · Claude Sonnet 5.5 Anthropic
 ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-…/my-project  ● ▃▅▇▅▂  enter send, esc cancel  shift+tab agents  ctrl+p commands
+…/my-project  ● listening ▅▇▆  shift+tab agents  ctrl+p commands
 ```
 
 ## Install
@@ -34,7 +34,7 @@ Restart OpenCode. The first time you dictate, the speech model (about 155 MB) is
 | Pick a microphone | `/dictate-mic` |
 | Pick a speech model | `/dictate-model` |
 
-While you dictate, the prompt bar shows a red dot and a level meter. Each phrase appears when you pause for about half a second, at the cursor, so you can mix typing and speaking. A phrase that starts a new sentence gets a capital letter, and Whisper's noise tags such as `[BLANK_AUDIO]` are dropped.
+While you dictate, the prompt bar shows a red dot and "listening", with level bars while you speak. The words you're saying appear in the prompt as a grey draft that updates as you go; when you pause for about half a second the draft is replaced by the final text (a "…" shows for the moment that takes). Everything goes in at the cursor, so you can mix typing and speaking. A phrase that starts a new sentence gets a capital letter, and Whisper's noise tags such as `[BLANK_AUDIO]` are dropped. The "enter send, esc cancel" hint shows during your first three dictations, then the bar stays short.
 
 ### Speech models
 
@@ -79,7 +79,8 @@ Give options by writing the plugin's entry in `~/.config/opencode/opencode.json`
 `src/tui.tsx` puts the microphone into OpenCode's `prompt.footer.status` slot and registers the commands. Under `src/core/`:
 - `audio.ts` reads the microphone through [PvRecorder](https://github.com/Picovoice/pvrecorder) in 512-sample frames at 16 kHz.
 - `engine.ts` cuts the sound into phrases at each pause with Silero VAD and transcribes them with Whisper. Both run in sherpa-onnx's prebuilt native packages.
-- `session.ts` keeps phrases in the order you said them.
+- `session.ts` keeps phrases in the order you said them, and re-transcribes the phrase you're still speaking every 0.6 seconds for the draft.
+- `inline.ts` writes that draft into the prompt, greys it with an extmark, and swaps it for the final text. If you edit the draft by hand it becomes your text and is left alone.
 - `models.ts` downloads models from Hugging Face.
 
 ## Develop

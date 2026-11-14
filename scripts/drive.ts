@@ -12,6 +12,10 @@ export type Driver = {
   /** Clicks the first cell showing `label`. */
   click(label: string): Promise<void>
   find(label: string): { row: number; col: number } | undefined
+  /** The characters on screen drawn in italics (the dictation draft is). */
+  italic(): string
+  /** Each run of same-coloured text on the row that contains `label`. */
+  colours(label: string): string[]
   close(): Promise<void>
 }
 
@@ -66,8 +70,46 @@ export async function launch(cwd: string, env: Record<string, string> = {}): Pro
     return undefined
   }
   const write = (data: string) => proc.terminal!.write(data)
+  const italic = () => {
+    const buf = term.buffer.active
+    let out = ''
+    const cell = buf.getNullCell()
+    for (let i = 0; i < ROWS; i++) {
+      const line = buf.getLine(buf.viewportY + i)
+      for (let x = 0; line && x < COLS; x++) {
+        line.getCell(x, cell)
+        if (cell.isItalic()) {
+          out += cell.getChars() || ' '
+        }
+      }
+    }
+    return out.trim()
+  }
+  const colours = (label: string) => {
+    const at = find(label)
+    if (!at) {
+      return []
+    }
+    const buf = term.buffer.active
+    const line = buf.getLine(buf.viewportY + at.row)!
+    const cell = buf.getNullCell()
+    const runs: string[] = []
+    let key = ''
+    for (let x = 0; x < COLS; x++) {
+      line.getCell(x, cell)
+      const k = `${cell.getFgColorMode()}:${cell.getFgColor()}${cell.isItalic() ? ':i' : ''}${cell.isDim() ? ':dim' : ''}`
+      if (k !== key) {
+        runs.push(`[${k}]`)
+        key = k
+      }
+      runs[runs.length - 1] += cell.getChars() || ' '
+    }
+    return runs.filter(r => r.replace(/^\[[^\]]*\]/, '').trim())
+  }
   return {
     screen,
+    italic,
+    colours,
     text: () => screen().join('\n'),
     find,
     write,

@@ -10,7 +10,8 @@ import { MicrophoneSource, WavFileSource, listMicrophones, type AudioSource } fr
 import { createEngine, type Engine } from './core/engine'
 import { MODEL_NAMES, MODEL_SIZE_MB, ensureModel, isModelName, isModelReady, type ModelName } from './core/models'
 import { DictationSession, type SessionState } from './core/session'
-import { joinAtCursor, levelBar } from './core/text'
+import { InlineDraft, type Editor } from './core/inline'
+import { levelBar } from './core/text'
 
 const RED = '#E5484D'
 
@@ -20,17 +21,18 @@ type Live = {
   speaking: boolean
   /** Shown beside the icon while starting, e.g. the download progress. */
   note: string
+  /** The words of the phrase being spoken, before the pause makes them final. */
+  draft: string
+  /** Finished phrases are still being turned into text. */
+  busy: boolean
 }
 
-type Settings = { model: string; device: string }
+type Settings = { model: string; device: string; uses: number }
 
-/** The bit of an OpenTUI edit buffer this plugin uses. */
-type Editor = {
-  plainText: string
-  cursorOffset: number
-  insertText(text: string): void
-  isDestroyed?: boolean
-}
+/** The stop-and-send hint shows during the first few dictations, then the footer stays short. */
+const HINT_USES = 3
+
+
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -47,14 +49,16 @@ export default Plugin.define({
     const testWav: string = options.testWav || process.env.OPENCODE_DICTATION_WAV || ''
 
     const [settings, setSettings] = context.storage.store<Settings>('settings', {
-      initial: { model: isModelName(options.model) ? options.model : 'base', device: '' },
+      initial: { model: isModelName(options.model) ? options.model : 'base', device: '', uses: 0 },
     })
     const [live, setLive] = context.storage.memory<Live>('live', {
-      initial: { state: 'idle', peak: 0, speaking: false, note: '' },
+      initial: { state: 'idle', peak: 0, speaking: false, note: '', draft: '', busy: false },
     })
     setLive(d => {
       d.state = 'idle'
       d.note = ''
+      d.draft = ''
+      d.busy = false
     })
 
     const toast = (message: string, variant: 'info' | 'success' | 'warning' | 'error' = 'info') =>
@@ -92,6 +96,7 @@ export default Plugin.define({
     // The prompt that was focused when dictation started. Phrases go there,
     // at its cursor, so typing and speaking mix.
     let target: Editor | undefined
+    let inline: InlineDraft | undefined
     let held = ''
     const focusedEditor = () => context.renderer.currentFocusedEditor as unknown as Editor | null
 
@@ -102,8 +107,8 @@ export default Plugin.define({
           phrase = `${held} ${phrase}`
           held = ''
         }
-        const before = editor.plainText.slice(0, editor.cursorOffset)
-        editor.insertText(joinAtCursor(before, phrase))
+        inline ??= new InlineDraft(editor, context.theme.text.muted)
+        inline.commit(phrase)
         return
       }
       if (!editor && focusedEditor() === null) {
@@ -126,7 +131,29 @@ export default Plugin.define({
           if (state === 'idle') {
             d.peak = 0
             d.speaking = false
+            d.draft = ''
+            d.busy = false
           }
+        }),
+      onDraft: draft => {
+        // The draft goes into the prompt itself, greyed, at the cursor.
+        const editor = target && !target.isDestroyed ? target : null
+        if (!editor || focusedEditor() !== editor) {
+          return
+        }
+        inline ??= new InlineDraft(editor, context.theme.text.muted)
+        if (draft) {
+          inline.show(draft)
+        } else {
+          inline.clear()
+        }
+        setLive(d => {
+          d.draft = draft
+        })
+      },
+      onBusy: busy =>
+        setLive(d => {
+          d.busy = busy
         }),
       onLevel: (peak, speaking) =>
         setLive(d => {
@@ -142,9 +169,16 @@ export default Plugin.define({
 
     const start = async () => {
       target = focusedEditor() ?? undefined
+      inline = undefined
       held = ''
+      showHint = settings.uses < HINT_USES
       try {
         await session.start(source(), engineFor(model()))
+        if (session.state === 'listening') {
+          void setSettings(d => {
+            d.uses = (d.uses ?? 0) + 1
+          })
+        }
       } catch (error) {
         toast(`Could not start dictation: ${errorText(error)}`, 'error')
       }
@@ -157,6 +191,8 @@ export default Plugin.define({
         held = ''
       }
     }
+
+    let showHint = true
 
     const toggle = () => {
       if (session.state === 'idle') {
@@ -276,10 +312,17 @@ export default Plugin.define({
       ],
     }))
 
+    const status = () => {
+      if (live.state === 'starting') {
+        return live.note || 'starting'
+      }
+      return live.state === 'finishing' ? 'finishing' : 'listening'
+    }
+
     context.ui.slot({
       append: 'prompt.footer.status',
       render: () => (
-        <box flexDirection="row" gap={1} flexShrink={0} onMouseUp={toggle}>
+        <box flexDirection="row" flexShrink={0} onMouseUp={toggle}>
           <Show
             when={isActive()}
             fallback={
@@ -290,15 +333,16 @@ export default Plugin.define({
           >
             <text fg={RED}>
               {live.state === 'starting' ? '◌ ' : '● '}
-              <span style={{ fg: context.theme.text.base }}>
-                {live.state === 'starting'
-                  ? live.note || 'starting'
-                  : live.state === 'finishing'
-                    ? 'finishing'
-                    : levelBar(live.peak)}
-              </span>
+              <span style={{ fg: context.theme.text.base }}>{status()}</span>
+              {/* Bars only while you speak, so a quiet room shows nothing. */}
+              {live.state === 'listening' && live.speaking ? ` ${levelBar(live.peak, 3)}` : ''}
+              <span style={{ fg: context.theme.text.faint }}>{live.busy ? ' …' : ''}</span>
               <span style={{ fg: context.theme.text.faint }}>
-                {live.state === 'listening' ? (sendOnEnter ? '  enter send, esc cancel' : '  esc cancel') : ''}
+                {live.state === 'listening' && showHint
+                  ? sendOnEnter
+                    ? '  enter send, esc cancel'
+                    : '  esc cancel'
+                  : ''}
               </span>
             </text>
           </Show>

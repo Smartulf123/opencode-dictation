@@ -65,7 +65,23 @@ try {
   await d.click('🎙')
   await d.waitFor('●', 30000)
   check(true, 'clicking the mic starts listening (red dot shown)')
-  check(d.text().includes('enter send, esc cancel'), 'the footer shows how to stop')
+  check(d.text().includes('listening'), 'the footer says it is listening')
+  // Watch the prompt box: while the first sentence is spoken, a draft of it
+  // shows up in the prompt (and grows) before the final text lands.
+  const seen = new Set<string>()
+  let greyed = ''
+  const end = Date.now() + 30000
+  while (Date.now() < end && !/refactor the login function\./i.test(promptText(d))) {
+    seen.add(promptText(d))
+    greyed ||= d.italic()
+    await Bun.sleep(50)
+  }
+  const drafts = [...seen].filter(t => /^Hello there\. \S/.test(t))
+  console.log(`      drafts seen: ${drafts.map(t => JSON.stringify(t.slice(13))).join(', ') || 'none'}`)
+  check(drafts.length > 0, 'a draft of the words shows inside the prompt before the pause')
+  console.log(`      drawn in grey italics: ${JSON.stringify(greyed)}`)
+  check(/refactor|please/i.test(greyed), 'the draft is drawn in grey italics')
+  check(!d.text().includes('“'), 'nothing is drawn under the prompt for the draft')
   await waitPrompt(d, /refactor the login function/i)
   check(true, 'the first phrase is typed while still listening')
   await waitPrompt(d, /unit tests for the error cases/i)
@@ -74,6 +90,7 @@ try {
   // 2. Clicking the dot stops; the prompt keeps the words and is not sent.
   await d.click('●')
   await d.waitFor('🎙', 15000)
+  check(d.italic() === '', 'once stopped, all the text is drawn normally (no draft left)')
   const text = promptText(d)
   console.log(`      prompt now: "${text}"`)
   check(/^Hello there\. Please refactor the login function\. ?Then add unit tests for the error cases\.$/i.test(text), 'the prompt reads as one sentence after another, joined to the typed text')

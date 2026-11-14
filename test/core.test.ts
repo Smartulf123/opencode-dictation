@@ -199,6 +199,44 @@ describe('session', () => {
     expect(session.state).toBe('idle')
   })
 
+  test('shows a draft while a phrase is spoken, then replaces it with the real text', async () => {
+    const drafts: string[] = []
+    const phrases: string[] = []
+    const busy: boolean[] = []
+    const session = new DictationSession(
+      { onPhrase: p => phrases.push(p), onDraft: t => drafts.push(t), onBusy: b => busy.push(b) },
+      { draftEvery: (2 * 512) / 16000, draftAfter: (2 * 512) / 16000 },
+    )
+    const source = new ManualSource()
+    await session.start(source, fakeEngine())
+    for (let i = 0; i < 4; i++) {
+      source.say(0.1)
+      await Bun.sleep(5)
+    }
+    expect(drafts).toContain('phrase 1')
+    expect(phrases).toEqual([])
+    source.say(-1)
+    await session.stop()
+    expect(phrases).toEqual(['phrase 1'])
+    expect(drafts.at(-1)).toBe('')
+    expect(busy).toEqual([true, false])
+  })
+
+  test('never shows a draft after cancelling', async () => {
+    const drafts: string[] = []
+    const session = new DictationSession(
+      { onPhrase: () => {}, onDraft: t => drafts.push(t) },
+      { draftEvery: (2 * 512) / 16000, draftAfter: (2 * 512) / 16000 },
+    )
+    const source = new ManualSource()
+    await session.start(source, fakeEngine({ 1: 30 }))
+    for (let i = 0; i < 3; i++) {
+      source.say(0.1)
+    }
+    await session.cancel()
+    expect(drafts.filter(Boolean)).toEqual([])
+  })
+
   test('a failing transcription is reported and the rest continue', async () => {
     const phrases: string[] = []
     const errors: unknown[] = []
