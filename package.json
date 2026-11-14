@@ -1,0 +1,59 @@
+{
+  "name": "opencode-dictation",
+  "version": "0.1.0",
+  "description": "Voice dictation for the OpenCode CLI: click the mic in the prompt bar, speak, and your words are typed into the prompt. Runs Whisper locally on your CPU, offline.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-tui-plugin",
+    "dictation",
+    "speech-to-text",
+    "voice",
+    "whisper",
+    "offline"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Smartulf123/opencode-dictation.git"
+  },
+  "homepage": "https://github.com/Smartulf123/opencode-dictation#readme",
+  "bugs": "https://github.com/Smartulf123/opencode-dictation/issues",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "opencode": ">=2.0.0"
+  },
+  "scripts": {
+    "test": "bun test --conditions=browser",
+    "typecheck": "tsc -p .",
+    "e2e": "bun scripts/e2e.ts",
+    "mic-check": "bun scripts/mic-check.ts"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.2.5",
+    "@picovoice/pvrecorder-node": "^1.2.9",
+    "sherpa-onnx-node": "^2.0.1"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "^0.8.1",
+    "@opentui/solid": "^0.8.1",
+    "@types/bun": "latest",
+    "@xterm/headless": "^6.0.0",
+    "solid-js": "^1.9.18",
+    "typescript": "^5.9.3"
+  }
+}
